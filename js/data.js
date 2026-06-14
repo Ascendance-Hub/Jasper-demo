@@ -357,4 +357,248 @@ DATA.overview = {
 
 /* ---- Helpers de acesso ------------------------------------------------- */
 DATA.pathfinderById = Object.fromEntries(DATA.pathfinders.map((p) => [p.id, p]));
+DATA.leaderById = Object.fromEntries(DATA.leaders.map((l) => [l.id, l]));
+DATA.externalById = Object.fromEntries(DATA.externals.map((x) => [x.id, x]));
 DATA.initials = (name) => name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+/* ==========================================================================
+   Geradores determinísticos de ficha (sem aleatoriedade em runtime)
+   Cada pessoa gera SEMPRE a mesma ficha, coerente com o registro dela.
+   Lucas, Letícia e Anderson têm dados curados; o resto é gerado.
+   ========================================================================== */
+(function () {
+  function hash(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  const pick = (seed, arr) => arr[hash(seed) % arr.length];
+  const intIn = (seed, min, max) => min + (hash(seed) % (max - min + 1));
+  const deaccent = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const slugName = (name) => deaccent(name).toLowerCase().split(' ').filter(Boolean).slice(0, 2).join('.');
+  const firstName = (name) => name.split(' ')[0];
+  const surname = (name) => name.split(' ').slice(1).join(' ') || name.split(' ')[0];
+
+  const MALE = ['Carlos', 'Paulo', 'Roberto', 'Sérgio', 'Marcos', 'Luiz', 'João', 'Ricardo', 'André', 'Fábio', 'Eduardo', 'Rogério'];
+  const FEMALE = ['Marta', 'Sandra', 'Cláudia', 'Fernanda', 'Paula', 'Rita', 'Ana', 'Luiza', 'Tânia', 'Sônia', 'Vânia', 'Beatriz'];
+  const STREETS = ['Rua das Hortênsias', 'Rua das Acácias', 'Av. Dom Pedro', 'Rua Ipê Amarelo', 'Rua das Camélias', 'Travessa São João', 'Rua Monte Verde'];
+  const BAIRROS = ['Vila Nova', 'Centro', 'Jardim Europa', 'Alto da Boa Vista', 'Vila Inglesa', 'Recanto da Serra'];
+  const SCHOOLS = ['E.E. Prof. João Ribeiro', 'Colégio Adventista', 'E.E. Monteiro Lobato', 'Escola Sagrado Coração', 'E.M. Tancredo Neves'];
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const CLUBES = ['Clube Pioneiros do Vale', 'Clube Sentinelas da Serra', 'Clube Monte Sião', 'Clube Estrela do Norte', 'Clube Vale Verde', 'Clube Aurora', 'Clube Águias Reais'];
+
+  const SPEC_POOL = {
+    ADRA: ['Cuidado Comunitário', 'Prevenção a Desastres', 'Ação Solidária'],
+    artes: ['Nós e Amarras', 'Modelagem em Argila', 'Cestaria', 'Desenho', 'Pintura', 'Origami'],
+    agricolas: ['Jardinagem', 'Horticultura', 'Plantas de Casa', 'Compostagem'],
+    missionarias: ['Mordomia Cristã', 'Comunicação', 'Evangelismo', 'Liderança Comunitária'],
+    profissionais: ['Computação', 'Fotografia', 'Marcenaria', 'Eletricidade'],
+    recreativas: ['Arte de Acampar', 'Orientação', 'Ciclismo', 'Natação', 'Escalada'],
+    ciencia: ['Primeiros Socorros', 'Saúde e Cura', 'Aptidão Física', 'Astronomia', 'Anatomia'],
+    natureza: ['Observação de Aves', 'Árvores', 'Répteis', 'Mamíferos', 'Flores', 'Ecologia'],
+    domesticas: ['Culinária', 'Costura', 'Etiqueta', 'Cuidados com a Casa'],
+  };
+  const CAT_KEYS = DATA.categories.map((c) => c.key);
+  const SANGUE = ['O+', 'A+', 'B+', 'O-', 'A-', 'AB+'];
+
+  function phone(seed) {
+    return '(12) 9' + (1000 + hash(seed) % 9000) + '-' + (1000 + hash(seed + 'x') % 9000);
+  }
+  function distribute(seed, n) {
+    const counts = Object.fromEntries(CAT_KEYS.map((k) => [k, 0]));
+    for (let i = 0; i < n; i++) counts[CAT_KEYS[hash(seed + 'd' + i) % CAT_KEYS.length]]++;
+    return counts;
+  }
+  function buildGallery(seed, byCat, inProgress) {
+    const items = [];
+    DATA.categories.forEach((c) => {
+      const pool = SPEC_POOL[c.key] || [c.name];
+      for (let k = 0; k < (byCat[c.key] || 0); k++) {
+        items.push({ name: pool[hash(seed + c.key + k) % pool.length], cat: c.key, done: true });
+      }
+    });
+    for (let i = Math.max(0, items.length - inProgress); i < items.length; i++) items[i].done = false;
+    return items;
+  }
+  function journeyFor(age) {
+    const cur = Math.min(Math.max(age - 10, 0), 5);
+    return DATA.classes.map((c, i) => {
+      let state = 'future';
+      if (i < cur) state = 'done'; else if (i === cur) state = 'current'; else if (i === cur + 1) state = 'progress';
+      return { name: c.name, age: c.age, state };
+    });
+  }
+  function birth(seed, age) {
+    const d = String(intIn(seed + 'd', 1, 28)).padStart(2, '0');
+    const m = String(intIn(seed + 'm', 1, 12)).padStart(2, '0');
+    return `${d}/${m}/${2026 - age} (${age} anos)`;
+  }
+  function serie(age) {
+    if (age <= 10) return '5º ano do Ensino Fundamental';
+    if (age <= 14) return `${age - 5}º ano do Ensino Fundamental`;
+    return '1ª série do Ensino Médio';
+  }
+
+  /* ---- Desbravador ---- */
+  DATA.buildPathfinder = function (id) {
+    const base = DATA.pathfinderById[id] || DATA.pathfinderById.lucas;
+    if (base.id === 'lucas') {
+      return Object.assign({}, DATA.lucas, {
+        initials: DATA.initials(DATA.lucas.name),
+        journey: DATA.lucasJourney,
+        specByCategory: DATA.lucasSpecByCategory,
+        gallery: DATA.lucasSpecialties,
+        sensitive: lucasSensitive(),
+      });
+    }
+    const seed = base.id;
+    const cur = Math.min(Math.max(base.age - 10, 0), 5);
+    const inProg = Math.min(base.specialties, intIn(seed + 'ip', 1, 3));
+    const byCat = distribute(seed, base.specialties);
+    const street = pick(seed + 's', STREETS);
+    return {
+      id: base.id, name: base.name, initials: DATA.initials(base.name),
+      unit: base.unit, age: base.age, specialties: base.specialties,
+      classesDone: cur, specInProgress: inProg,
+      personal: {
+        'Nome completo': base.name,
+        'Data de nascimento': birth(seed, base.age),
+        'Unidade': base.unit,
+        'No clube desde': `${MESES[intIn(seed + 'mc', 0, 11)].replace(/^./, (c) => c.toUpperCase())} de ${intIn(seed + 'yc', 2021, 2024)}`,
+      },
+      contact: {
+        'Celular': phone(seed),
+        'E-mail': `${slugName(base.name)}@email.com`,
+        'Endereço': `${street}, ${intIn(seed + 'n', 20, 480)} — ${pick(seed + 'b', BAIRROS)}`,
+        'Cidade': `Campos do Jordão / SP · CEP 12460-0${intIn(seed + 'c', 10, 99)}`,
+      },
+      school: {
+        'Escola': pick(seed + 'esc', SCHOOLS),
+        'Série': serie(base.age),
+        'Período': pick(seed + 'per', ['Manhã', 'Tarde']),
+      },
+      guardians: [
+        { name: `${pick(seed + 'mae', FEMALE)} ${surname(base.name)}`, initials: '', rel: 'Mãe · responsável principal', contact: `${phone(seed + 'mae')} · ${slugName(base.name)}@email.com` },
+        { name: `${pick(seed + 'pai', MALE)} ${surname(base.name)}`, initials: '', rel: 'Pai', contact: `${phone(seed + 'pai')}` },
+      ].map((g) => Object.assign(g, { initials: DATA.initials(g.name) })),
+      currentClass: { name: DATA.classes[cur].name, age: DATA.classes[cur].age, req: 18, done: Math.min(17, 4 + hash(seed + 'cc') % 12) },
+      journey: journeyFor(base.age),
+      specByCategory: byCat,
+      gallery: buildGallery(seed, byCat, inProg),
+      sensitive: genSensitive(seed, base.name),
+    };
+  };
+
+  function genSensitive(seed, name) {
+    return {
+      saude: {
+        'Tipo sanguíneo': pick(seed + 'sg', SANGUE),
+        'Alergias': pick(seed + 'al', ['Nenhuma conhecida', 'Dipirona', 'Frutos do mar', 'Poeira / ácaros', 'Penicilina']),
+        'Restrições alimentares': pick(seed + 'rt', ['Nenhuma', 'Sem lactose', 'Vegetariano', 'Sem glúten']),
+        'Observações médicas': pick(seed + 'om', ['Sem observações', 'Usa óculos para longe', 'Usa inalador (asma leve)', 'Acompanhamento ortodôntico']),
+      },
+      docs: {
+        'Plano de saúde': pick(seed + 'pl', ['Unimed', 'Bradesco Saúde', 'SUS', 'Amil']) + ' · carteirinha ' + intIn(seed + 'ca', 1000, 9999) + '-' + intIn(seed + 'cb', 1000, 9999),
+        'RG': `${intIn(seed + 'r1', 10, 49)}.${intIn(seed + 'r2', 100, 999)}.${intIn(seed + 'r3', 100, 999)}-${intIn(seed + 'r4', 0, 9)}`,
+        'CPF': `${intIn(seed + 'c1', 100, 999)}.${intIn(seed + 'c2', 100, 999)}.${intIn(seed + 'c3', 100, 999)}-${String(intIn(seed + 'c4', 0, 99)).padStart(2, '0')}`,
+        'Contato de emergência': `${pick(seed + 'mae', FEMALE)} ${surname(name)} · ${phone(seed + 'mae')}`,
+      },
+    };
+  }
+  function lucasSensitive() {
+    return {
+      saude: { 'Tipo sanguíneo': 'O+', 'Alergias': 'Dipirona', 'Restrições alimentares': 'Nenhuma', 'Observações médicas': 'Usa óculos para longe' },
+      docs: { 'Plano de saúde': 'Unimed · carteirinha 0099-4521', 'RG': '45.812.330-7', 'CPF': '512.330.118-04', 'Contato de emergência': 'Marta Andrade · (12) 99876-5432' },
+    };
+  }
+
+  /* ---- Liderança ---- */
+  const ROLE_DESC = {
+    'Diretor': 'Responde pela direção geral do clube.',
+    'Diretora associada': 'Apoia a direção e responde na ausência do diretor.',
+    'Secretária': 'Cuida de registros, fichas e documentação do clube.',
+    'Secretário': 'Cuida de registros, fichas e documentação do clube.',
+    'Tesoureiro': 'Cuida das finanças, mensalidades e prestação de contas.',
+    'Capelão': 'Coordena a parte espiritual e devocional do clube.',
+    'Conselheiro': 'Acompanha de perto uma unidade e seus desbravadores.',
+    'Conselheira': 'Acompanha de perto uma unidade e seus desbravadores.',
+    'Conselheira associada': 'Apoia o conselheiro titular no acompanhamento da unidade.',
+    'Instrutora': 'Ensina especialidades e classes aos desbravadores.',
+    'Instrutor': 'Ensina especialidades e classes aos desbravadores.',
+  };
+  DATA.roleDescFor = (t) => ROLE_DESC[t] || 'Atua na liderança do clube.';
+  function leaderClassesFor(primary, seed) {
+    const isDir = /Diretor/.test(primary);
+    if (isDir) return [{ name: 'Líder', state: 'Concluída', done: true }, { name: 'Líder Master', state: 'Concluída', done: true }, { name: 'Líder Master Avançado', state: 'Em andamento', done: false }];
+    if (/Conselheir/.test(primary)) return [{ name: 'Líder', state: 'Concluída', done: true }, { name: 'Líder Master', state: 'Em andamento', done: false }, { name: 'Líder Master Avançado', state: 'Não iniciada', done: false }];
+    return [{ name: 'Líder', state: 'Concluída', done: true }, { name: 'Líder Master', state: hash(seed) % 2 ? 'Em andamento' : 'Concluída', done: hash(seed) % 2 === 0 }, { name: 'Líder Master Avançado', state: 'Não iniciada', done: false }];
+  }
+  DATA.buildLeader = function (id) {
+    const l = DATA.leaderById[id] || DATA.leaderById.leticia;
+    if (l.id === 'leticia') return Object.assign({ minor: true, sensitive: genSensitive('leticia', DATA.leticia.name) }, DATA.leticia);
+    const seed = l.id;
+    const primary = l.roles[0].t;
+    const age = l.age || intIn(seed + 'ag', 26, 47);
+    const isInstrutor = l.roles.some((r) => /Instrutor/.test(r.t));
+    const street = pick(seed + 's', STREETS);
+    const byCat = distribute(seed, intIn(seed + 'nsp', 14, 26));
+    return {
+      id: l.id, name: l.name, initials: l.initials, minor: false,
+      role: primary, roleDesc: l.unit ? `Atua na Unidade ${l.unit}` : DATA.roleDescFor(primary),
+      roles: l.roles, email: l.email, phone: l.phone, twoFA: hash(seed) % 2 === 0,
+      personal: {
+        'Nome completo': l.name,
+        'Data de nascimento': birth(seed, age),
+        'Papel principal': primary,
+        'No clube desde': `${MESES[intIn(seed + 'mc', 0, 11)].replace(/^./, (c) => c.toUpperCase())} de ${intIn(seed + 'yc', 2014, 2022)}`,
+      },
+      contact: {
+        'Celular': l.phone,
+        'E-mail': l.email,
+        'Endereço': `${street}, ${intIn(seed + 'n', 20, 480)} — ${pick(seed + 'b', BAIRROS)}`,
+        'Cidade': `Campos do Jordão / SP · CEP 12460-0${intIn(seed + 'c', 10, 99)}`,
+      },
+      permissions: { title: primary, desc: ROLE_DESC[primary] || 'Atua na liderança do clube.' },
+      linkedUnits: l.unit ? [l.unit] : ['Todas as unidades'],
+      emergency: { name: `${pick(seed + 'em', [...FEMALE, ...MALE])} ${surname(l.name)}`, contact: phone(seed + 'em') },
+      journey: DATA.classes.map((c) => ({ name: c.name, age: c.age, state: 'done' })),
+      specByCategory: byCat,
+      leaderClasses: leaderClassesFor(primary, seed),
+      canInstruct: isInstrutor ? [pick(seed + 'i1', SPEC_POOL.ciencia), pick(seed + 'i2', SPEC_POOL.natureza), pick(seed + 'i3', SPEC_POOL.recreativas)] : [],
+      sensitive: genSensitive(seed, l.name),
+    };
+  };
+
+  /* ---- Externo ---- */
+  DATA.buildExternal = function (id) {
+    const x = DATA.externalById[id] || DATA.externalById.anderson;
+    if (x.id === 'anderson') return DATA.anderson;
+    const seed = x.id;
+    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    // gera 'activities' entradas, datas decrescentes a partir de x.last
+    const lm = months.indexOf(x.last.slice(0, 3));
+    let ly = parseInt(x.last.slice(-4), 10);
+    let mi = lm;
+    const history = [];
+    for (let i = 0; i < x.activities; i++) {
+      const club = i === 0 ? 'Clube Águias Reais' : pick(seed + 'cl' + i, CLUBES);
+      history.push({
+        club,
+        role: hash(seed + 'r' + i) % 4 === 0 ? 'Palestrante' : 'Instrutor',
+        activity: `${hash(seed + 'a' + i) % 3 === 0 ? 'Oficina de' : 'Especialidade de'} ${x.specialty}`,
+        date: `${months[mi]}/${ly}`,
+      });
+      mi -= 1 + (hash(seed + 't' + i) % 2);
+      while (mi < 0) { mi += 12; ly -= 1; }
+    }
+    return {
+      id: x.id, name: x.name, initials: x.initials, tone: x.tone,
+      email: `${slugName(x.name)}@email.com`, phone: phone(seed),
+      city: pick(seed + 'ct', ['São José dos Campos / SP', 'Taubaté / SP', 'Jacareí / SP', 'Pindamonhangaba / SP', 'Campos do Jordão / SP']),
+      specialties: [x.specialty],
+      recognizedBy: x.clubs, consented: hash(seed) % 5 !== 0,
+      clubsCount: x.clubs, activitiesCount: x.activities,
+      history,
+    };
+  };
+})();
