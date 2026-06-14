@@ -581,12 +581,12 @@ Screens['pessoas-externos'] = function () {
 
 /* ======================= FICHA · Desbravador ============================ */
 Screens['ficha-desbravador'] = function () {
-  const L = DATA.lucas;
+  const L = DATA.buildPathfinder(APP.params.id || 'lucas');
   const tabBtn = (k, label, ic) => `<button data-action="ficha-tab" data-tab="${k}" class="${APP.fichaTab === k ? 'is-active' : ''}">${ic ? icon(ic) : ''}${label}</button>`;
   let body = '';
-  if (APP.fichaTab === 'progresso') body = progressoDesbravador();
-  else if (APP.fichaTab === 'sensiveis') body = dadosSensiveis();
-  else body = infoGeralDesbravador();
+  if (APP.fichaTab === 'progresso') body = progressoDesbravador(L);
+  else if (APP.fichaTab === 'sensiveis') body = dadosSensiveis(L);
+  else body = infoGeralDesbravador(L);
   return `
     ${crumbs([{ label: 'Pessoas', view: 'pessoas-desbravadores' }, { label: 'Desbravadores', view: 'pessoas-desbravadores' }, { label: L.name }])}
     <div class="card profile-head">
@@ -609,8 +609,7 @@ function fieldList(obj) {
   return Object.entries(obj).map(([k, v]) => `<div class="field"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 }
 
-function infoGeralDesbravador() {
-  const L = DATA.lucas;
+function infoGeralDesbravador(L) {
   return `
     <div class="info-grid">
       <div class="info-panel"><div class="eyebrow">Dados pessoais</div>${fieldList(L.personal)}</div>
@@ -622,9 +621,8 @@ function infoGeralDesbravador() {
     </div>`;
 }
 
-function progressoDesbravador() {
-  const L = DATA.lucas;
-  const journey = DATA.lucasJourney;
+function progressoDesbravador(L) {
+  const journey = L.journey;
   return `
     <div class="info-panel">
       <div class="section-title">Classes</div>
@@ -643,20 +641,21 @@ function progressoDesbravador() {
       <div class="info-panel">
         <div class="section-title">Especialidades por categoria</div>
         <div class="section-sub">${L.specialties} conquistadas · ${L.specInProgress} em andamento</div>
-        ${categoryBars(DATA.lucasSpecByCategory)}
+        ${categoryBars(L.specByCategory)}
         <p class="muted-note" style="margin-top:14px">Insígnias representadas de forma genérica (círculo da categoria + ícone) — as artes oficiais são registradas.</p>
       </div>
       <div class="info-panel">
         <div class="section-title">Galeria de especialidades</div>
         <div class="search" style="margin:8px 0 16px"><span>${icon('search')}</span><input placeholder="Buscar especialidade…" data-search="spec"></div>
         <div class="spec-gallery" data-group="spec">
-          ${DATA.lucasSpecialties.map((s) => `<div data-searchable="spec" data-name="${s.name.toLowerCase()}">${specialtyGallery([s])}</div>`).join('')}
+          ${L.gallery.map((s) => `<div data-searchable="spec" data-name="${s.name.toLowerCase()}">${specialtyGallery([s])}</div>`).join('')}
         </div>
       </div>
     </div>`;
 }
 
-function dadosSensiveis() {
+function dadosSensiveis(P) {
+  const sens = (P && P.sensitive) || { saude: {}, docs: {} };
   if (!APP.pinUnlocked) {
     return `
       <div class="card pin-gate">
@@ -678,35 +677,31 @@ function dadosSensiveis() {
       <button class="btn btn--sm" data-action="pin-lock">${icon('lock')} Bloquear novamente</button>
     </div>
     <div class="info-grid">
-      <div class="info-panel"><div class="eyebrow">Saúde</div>
-        ${fieldList({ 'Tipo sanguíneo': 'O+', 'Alergias': 'Dipirona', 'Restrições alimentares': 'Nenhuma', 'Observações médicas': 'Usa óculos para longe' })}
-      </div>
-      <div class="info-panel"><div class="eyebrow">Convênio & documentos</div>
-        ${fieldList({ 'Plano de saúde': 'Unimed · carteirinha 0099-4521', 'RG': '45.812.330-7', 'CPF': '512.330.118-04', 'Contato de emergência': 'Marta Andrade · (12) 99876-5432' })}
-      </div>
+      <div class="info-panel"><div class="eyebrow">Saúde</div>${fieldList(sens.saude)}</div>
+      <div class="info-panel"><div class="eyebrow">Convênio & documentos</div>${fieldList(sens.docs)}</div>
     </div>
     <p class="protect-note" style="margin-top:16px">${icon('shield')} Acesso a dados sensíveis é registrado. Trate com responsabilidade.</p>`;
 }
 
 /* ======================= FICHA · Liderança (Letícia, menor) ============= */
 Screens['ficha-lideranca'] = function () {
-  const L = DATA.leticia;
+  const L = DATA.buildLeader(APP.params.id || 'leticia');
   const tabBtn = (k, label, ic) => `<button data-action="ficha-tab" data-tab="${k}" class="${APP.fichaTab === k ? 'is-active' : ''}">${ic ? icon(ic) : ''}${label}</button>`;
   let body = '';
-  if (APP.fichaTab === 'progresso') body = progressoLideranca();
-  else if (APP.fichaTab === 'sensiveis') body = dadosSensiveis();
-  else body = infoGeralLideranca();
+  if (APP.fichaTab === 'progresso') body = progressoLideranca(L);
+  else if (APP.fichaTab === 'sensiveis') body = dadosSensiveis(L);
+  else body = infoGeralLideranca(L);
+  const twoFa = `<span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>2FA ${L.twoFA ? 'ativo' : 'inativo'}</span>`;
+  const minorBadge = L.minor ? `<span class="badge badge--gold"><span class="dot"></span>Menor de 18 · ${L.age} anos</span>` : '';
+  const extraRoles = (L.roles || []).slice(1).map((r) => `<span class="badge role--alt">${r.t}</span>`).join(' ');
   return `
     ${crumbs([{ label: 'Pessoas', view: 'pessoas-desbravadores' }, { label: 'Liderança', view: 'pessoas-lideranca' }, { label: L.name }])}
     ${backlink('Liderança', 'pessoas-lideranca')}
     <div class="card profile-head">
       ${avatar(L.initials, 'avatar--xl')}
       <div class="ph-main">
-        <h1>${L.name}
-          <span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>2FA inativo</span>
-          <span class="badge badge--gold"><span class="dot"></span>Menor de 18 · ${L.age} anos</span>
-        </h1>
-        <div class="ph-sub"><span class="badge role">${L.role}</span> · ${L.roleDesc}</div>
+        <h1>${L.name} ${twoFa} ${minorBadge}</h1>
+        <div class="ph-sub"><span class="badge role">${L.role}</span> ${extraRoles} · ${L.roleDesc}</div>
         <div class="ph-contact"><span>${icon('mail')} ${L.email}</span><span>${icon('phone')} ${L.phone}</span></div>
       </div>
     </div>
@@ -718,32 +713,37 @@ Screens['ficha-lideranca'] = function () {
     <div class="fade-in">${body}</div>`;
 };
 
-function infoGeralLideranca() {
-  const L = DATA.leticia;
+function infoGeralLideranca(L) {
+  const cargosPanel = `<div class="info-panel"><div class="eyebrow">Cargos e permissões</div>
+      ${(L.roles || [{ t: L.role }]).map((r) => `<div class="resp-card" style="background:#f6f8fb"><div><div class="nm">${r.t}</div><div class="meta">${(DATA.roleDescFor && DATA.roleDescFor(r.t)) || L.permissions.desc}</div></div></div>`).join('')}
+    </div>`;
+  const lastPanel = L.minor
+    ? `<div class="info-panel" style="grid-column:1/-1">
+        <div class="eyebrow">Responsáveis vinculados</div>
+        <div class="protect-banner" style="margin:12px 0">${icon('shield')} Líder menor de 18 — mantém proteção de menor.</div>
+        ${L.guardians.map((g) => `<div class="resp-card">${avatar(g.initials)}<div><div class="nm">${g.name}</div><div class="meta">${g.rel}</div></div></div>`).join('')}
+      </div>`
+    : `<div class="info-panel"><div class="eyebrow">Contato de emergência</div>
+        <div class="resp-card">${avatar(DATA.initials(L.emergency.name))}<div><div class="nm">${L.emergency.name}</div><div class="meta">${L.emergency.contact}</div></div></div>
+      </div>`;
   return `
     <div class="info-grid">
       <div class="info-panel"><div class="eyebrow">Dados pessoais</div>${fieldList(L.personal)}</div>
       <div class="info-panel"><div class="eyebrow">Contato & endereço</div>${fieldList(L.contact)}</div>
-      <div class="info-panel"><div class="eyebrow">Cargos e permissões</div>
-        <div class="resp-card" style="background:#f6f8fb"><div><div class="nm">${L.permissions.title}</div><div class="meta">${L.permissions.desc}</div></div></div>
-      </div>
+      ${cargosPanel}
       <div class="info-panel"><div class="eyebrow">Unidades vinculadas</div>
-        <div class="field" style="display:flex;align-items:center;gap:10px;border:none">${icon('users')}<span>Unidade <strong>${L.linkedUnits.join(', ')}</strong></span></div>
+        <div class="field" style="display:flex;align-items:center;gap:10px;border:none">${icon('users')}<span><strong>${L.linkedUnits.join(', ')}</strong></span></div>
       </div>
-      <div class="info-panel" style="grid-column:1/-1">
-        <div class="eyebrow">Responsáveis vinculados</div>
-        <div class="protect-banner" style="margin:12px 0">${icon('shield')} Líder menor de 18 — mantém proteção de menor.</div>
-        ${L.guardians.map((g) => `<div class="resp-card">${avatar(g.initials)}<div><div class="nm">${g.name}</div><div class="meta">${g.rel}</div></div></div>`).join('')}
-      </div>
+      ${lastPanel}
     </div>`;
 }
 
-function progressoLideranca() {
-  const L = DATA.leticia;
+function progressoLideranca(L) {
+  const firstName = L.name.split(' ')[0];
   return `
     <div class="info-panel">
       <div class="section-title">Jornada de classes (regular)</div>
-      <div class="section-sub">Letícia também é desbravadora — segue as classes regulares, como qualquer membro.</div>
+      <div class="section-sub">${firstName} também é desbravador(a) — segue as classes regulares, como qualquer membro.</div>
       ${journeyRow(L.journey)}
     </div>
     <div style="height:18px"></div>
@@ -759,17 +759,18 @@ function progressoLideranca() {
       <div class="lead-levels">
         ${L.leaderClasses.map((c) => `<div class="lead-level"><div class="ll-name">${c.name}</div><div class="ll-state">${c.done ? '✓ ' : ''}${c.state}</div></div>`).join('')}
       </div>
+      ${L.canInstruct && L.canInstruct.length ? `
       <div style="height:20px"></div>
       <div class="eyebrow">Pode instruir</div>
       <div class="spec-chips" style="margin-top:10px">
         ${L.canInstruct.map((s) => `<span class="badge" style="background:rgba(255,255,255,.12);color:#fff">${icon('award')} ${s}</span>`).join('')}
-      </div>
+      </div>` : ''}
     </div>`;
 }
 
 /* ======================= FICHA · Externo (Anderson) ===================== */
 Screens['ficha-externo'] = function () {
-  const A = DATA.anderson;
+  const A = DATA.buildExternal(APP.params.id || 'anderson');
   return `
     ${crumbs([{ label: 'Pessoas', view: 'pessoas-desbravadores' }, { label: 'Externos', view: 'pessoas-externos' }, { label: A.name }])}
     ${pessoasSubtabs('externos')}

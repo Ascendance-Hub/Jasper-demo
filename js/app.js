@@ -73,12 +73,12 @@ function render() {
     const backView = APP.view === 'assinatura-mobile' ? 'autorizacao-detalhe'
       : APP.view === 'cartao-desbravador' ? 'ficha-desbravador' : 'dashboard';
     const backBtn = APP.role === 'secretario'
-      ? `<button class="btn btn--sm phone-back" data-view="${backView}">${icon('arrowLeft')} Voltar ao painel</button>`
+      ? `<button class="btn btn--sm" data-view="${backView}">${icon('arrowLeft')} Voltar ao painel</button>`
       : '';
     root.innerHTML = `
       <div class="phone-stage fade-in">
-        ${backBtn}
-        <div style="position:absolute;top:20px;right:24px;z-index:5">
+        <div class="phone-toolbar">
+          <div class="pt-left">${backBtn}</div>
           ${roleSelectorFloating()}
         </div>
         ${Screens[APP.view]()}
